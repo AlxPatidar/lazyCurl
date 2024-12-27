@@ -1,6 +1,3 @@
-use std::io;
-
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -8,73 +5,37 @@ use ratatui::{
     symbols::border,
     text::{Line, Text},
     widgets::{Block, Paragraph, Widget},
-    DefaultTerminal, Frame,
 };
+use std::env;
+use std::io;
+mod app;
+use reqwest;
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let app_result = crate::app::App::default().run(&mut terminal);
     ratatui::restore();
     app_result
 }
 
-#[derive(Debug, Default)]
-pub struct App {
-    counter: u8,
-    exit: bool,
+fn get_data(path: String) -> String {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    // Run the async code using `block_on`
+    let response = runtime.block_on(async {
+        reqwest::get(path)
+            .await // Await the response inside the async block
+            .unwrap() // Unwrap the result
+    });
+    // Print the response as text
+    let body = runtime.block_on(response.text()).unwrap();
+    return body;
 }
-
-impl App {
-    /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
-        }
-        Ok(())
-    }
-
-    fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
-    }
-
-    /// updates the application's state based on user input
-    fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decrement_counter(),
-            KeyCode::Right => self.increment_counter(),
-            _ => {}
-        }
-    }
-
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-
-    fn increment_counter(&mut self) {
-        self.counter += 1;
-    }
-
-    fn decrement_counter(&mut self) {
-        self.counter -= 1;
-    }
-}
-
-impl Widget for &App {
+impl Widget for &crate::app::App {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let args: Vec<String> = env::args().collect();
+        let method = &args[1];
+        let path = &args[2];
+
         let title = Line::from(" Lazy Curl ".bold());
         let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
         let block = Block::bordered()
@@ -82,11 +43,14 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
 
+        let json_string = get_data(path.to_string());
+        // Create the Ratatui Text widget to display the result
         let counter_text = Text::from(vec![Line::from(vec![
-            // "Value: ".into(),
-            // self.counter.to_string().yellow(),
+            "Value: ".into(),
+            method.to_string().yellow(),
+            " Path: ".into(),
+            json_string.into(), // Display the formatted JSON string
         ])]);
-
         Paragraph::new(counter_text)
             .centered()
             .block(block)
