@@ -1,8 +1,8 @@
 mod app;
 mod state;
+mod ui;
 use state::State;
 use std::io;
-
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
     let mut state: State = state::State::default();

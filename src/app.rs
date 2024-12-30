@@ -1,15 +1,10 @@
 use crate::state::State;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{
-    layout::Rect,
-    style::{Color, Style},
-    text::{Line, Span},
-    widgets::Paragraph,
-    widgets::{Block, Borders},
-};
+use ratatui::{layout::Rect, widgets::Block};
 use ratatui::{DefaultTerminal, Frame};
 use std::env;
 use std::io;
+
 /// runs the application's main loop until the user quits
 pub fn run(terminal: &mut DefaultTerminal, state: &mut State) -> io::Result<()> {
     while !state.exit {
@@ -21,27 +16,14 @@ pub fn run(terminal: &mut DefaultTerminal, state: &mut State) -> io::Result<()> 
 
 fn draw_ui(frame: &mut Frame, state: &mut State) {
     let area = frame.area();
-    // Create the Ratatui Text widget to display the result
-    let main_block = Block::default()
-        .title("Lazy Curl")
-        .borders(Borders::ALL)
-        .border_type(ratatui::widgets::BorderType::Thick)
-        .border_style(Style::default().fg(Color::White));
+    // fetch components from ui module
+    let main_block: Block = crate::ui::main_block();
 
     app_widget(frame, main_block.inner(area), state);
     frame.render_widget(main_block, area);
 }
 
 fn app_widget(frame: &mut Frame, area: Rect, state: &mut State) {
-    let title = Line::from(" Lazy Curl ");
-    let instructions = Line::from(vec![
-        Span::raw(" Quit ").into(),
-        Span::raw("<Q> ".to_string()),
-    ]);
-    let block = Block::bordered()
-        .title(title.centered())
-        .title_bottom(instructions.centered());
-
     let args: Vec<String> = env::args().collect();
     #[allow(unused_variables)]
     let method = &args[1];
@@ -51,12 +33,7 @@ fn app_widget(frame: &mut Frame, area: Rect, state: &mut State) {
     // let user: String = state.get_data(path.to_string());
     // let method: &str = "GET";
     let json_string = state.get_data(path.to_string());
-    // Create the Ratatui Text widget to display the result
-    let counter_text = vec![Line::from(vec![
-        Span::raw("Value: "),
-        Span::raw(json_string.to_string()),
-    ])];
-    let paragraph = Paragraph::new(counter_text).centered().block(block);
+    let paragraph = crate::ui::container_block(json_string);
     frame.render_widget(paragraph, area);
 }
 /// updates the application's state based on user input
