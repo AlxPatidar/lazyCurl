@@ -1,3 +1,4 @@
+use crate::state::InputMode;
 use crate::state::State;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent};
 use ratatui::prelude::*;
@@ -5,7 +6,6 @@ use ratatui::widgets::{Borders, Paragraph};
 use ratatui::{layout::Rect, widgets::Block};
 use ratatui::{DefaultTerminal, Frame};
 use serde_json::Value;
-use std::env;
 use std::io;
 
 /// runs the application's main loop until the user quits
@@ -20,22 +20,19 @@ pub fn run(terminal: &mut DefaultTerminal, state: &mut State) -> io::Result<()> 
 fn draw_ui(frame: &mut Frame, state: &mut State) {
     let area = frame.area();
     // fetch components from ui module
-    let main_block: Block = crate::ui::main_block();
+    let main_block: Block = crate::ui::main_block(&state.input_mode);
     app_widget(frame, main_block.inner(area), state);
     frame.render_widget(main_block, area);
 }
 
 fn app_widget(frame: &mut Frame, area: Rect, state: &mut State) {
-    let args: Vec<String> = env::args().collect();
-    #[allow(unused_variables)]
-    let method = &args[1];
-    let path = &args[2];
-    state.set_method(method.to_string());
-    state.set_path(path.to_string());
-    // let user: String = state.get_data(path.to_string());
-    // let method: &str = "GET";
-    let json_string = state.get_data(path.to_string());
-    // let paragraph = crate::ui::container_block(json_string);
+    // let args: Vec<String> = env::args().collect();
+    // #[allow(unused_variables)]
+    // let method = &args[1];
+    // let path = &args[2];
+    // state.set_method(method.to_string());
+    // state.set_path(path.to_string());
+    let json_string = state.get_data(state.url.to_string());
     // frame.render_widget(paragraph, area);
     let layout_vartical = Layout::default()
         .direction(Direction::Vertical)
@@ -62,14 +59,30 @@ fn app_widget(frame: &mut Frame, area: Rect, state: &mut State) {
     // Create a Paragraph widget to display the input text
     let input_paragraph = Paragraph::new(state.path.clone())
         .style(match state.input_mode {
-            crate::state::InputMode::Normal => Style::default(),
-            crate::state::InputMode::Editing => Style::default().fg(Color::Yellow),
+            InputMode::Normal => Style::default(),
+            InputMode::Editing => Style::default().fg(Color::Yellow),
         })
         .block(Block::bordered().title("Input"));
     frame.render_widget(input_paragraph, layout_horizontal[1]);
+    // let [input_area] = layout_horizontal[1].area(frame.area());
+    match state.input_mode {
+        // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+        InputMode::Normal => {}
+        // Make the cursor visible and ask ratatui to put it at the specified coordinates after
+        // rendering
+        #[allow(clippy::cast_possible_truncation)]
+        InputMode::Editing => frame.set_cursor_position(Position::new(
+            // Draw the cursor at the current position in the input field.
+            // This position is can be controlled via the left and right arrow key
+            layout_horizontal[1].x + state.cursor as u16 + 1,
+            // Move one line down, from the border to the input line
+            layout_horizontal[1].y + 1,
+        )),
+    }
 
     frame.render_widget(
         Paragraph::new("Send")
+            .centered()
             .style(Style::default().fg(Color::White))
             .block(Block::default().borders(Borders::ALL)),
         layout_horizontal[2],
@@ -100,25 +113,24 @@ fn handle_events(state: &mut State) -> io::Result<()> {
 }
 
 fn handle_key_event(key_event: KeyEvent, state: &mut State) {
-    let mut input_text = String::from(state.path.clone());
-    match key_event.code {
-        KeyCode::Char('q') => state.exit(),
-        KeyCode::Char('i') => {
-            state.set_mode(crate::state::InputMode::Editing);
-        }
-        KeyCode::Esc => {
-            state.set_mode(crate::state::InputMode::Normal);
-        }
-        KeyCode::Left => state.decrement_counter(),
-        KeyCode::Right => state.increment_counter(),
-        KeyCode::Backspace => {
-            input_text.pop(); // Remove the last character
-            state.set_path(input_text); // Update the input_text
-        }
-        KeyCode::Char(c) => {
-            input_text.push(c);
-            state.set_path(input_text); // Append the character to input_text
-        }
+    match state.input_mode {
+        InputMode::Normal => match key_event.code {
+            KeyCode::Char('e') => state.set_mode(InputMode::Editing),
+            KeyCode::Char('q') => state.exit(),
+            _ => {}
+        },
+        InputMode::Editing if key_event.kind == KeyEventKind::Press => match key_event.code {
+            KeyCode::Esc => state.set_mode(InputMode::Normal),
+            KeyCode::Char(to_insert) => state.enter_char(to_insert),
+            KeyCode::Enter => {
+                state.set_url(state.path.to_string());
+                state.set_mode(InputMode::Normal);
+            }
+            KeyCode::Backspace => state.delete_char(),
+            KeyCode::Left => state.move_cursor_left(),
+            KeyCode::Right => state.move_cursor_right(),
+            _ => {}
+        },
         _ => {}
     }
 }
