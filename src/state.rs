@@ -6,6 +6,7 @@ pub struct State {
     pub exit: bool,
     pub path: String,
     pub method: String,
+    pub input_mode: InputMode,
 }
 // set default state
 impl Default for State {
@@ -16,8 +17,14 @@ impl Default for State {
             data: String::new(),
             path: String::new(),
             method: String::new(),
+            input_mode: InputMode::Normal,
         }
     }
+}
+
+pub enum InputMode {
+    Normal,
+    Editing,
 }
 // function to update state
 impl State {
@@ -28,6 +35,7 @@ impl State {
             data: String::new(),
             path: String::new(),
             method: String::new(),
+            input_mode: InputMode::Normal,
         }
     }
     // increment counter
@@ -49,6 +57,10 @@ impl State {
     // set path for the app
     pub fn set_path(&mut self, path: String) {
         self.path = path;
+    }
+    // set path for the app
+    pub fn set_mode(&mut self, input: InputMode) {
+        self.input_mode = input;
     }
     // fetch data from the server
     pub fn get_data(&mut self, path: String) -> String {
